@@ -24,8 +24,8 @@ __vector_dispatch_9:
     
 main:
     /* Configure I/O ports--LEDs on Port A & C; switches on Port B */
-    li	    t0, _PORTB_RB2_MASK
-    ori	    t0, t0, _PORTB_RB1_MASK
+    li	    t0, _PORTB_RB1_MASK
+    
     sw	    t0, TRISB		    ## TRISB = 0x00002080 --> pins 7 & 13 inputs
     sw	    zero, ANSELB	    ## ANSELB = 0 --> all PORTB bits digital  
        
@@ -45,9 +45,8 @@ main:
     li	    t3, _IEC0_CNBIE_MASK    ## Enable Port B change 
     sw	    t3, IEC0		    ##    notification interrupts
 
-    add     t3, zero, zero
-    ori	    t3, _PORTB_RB2_MASK
-    ori	    t3, _PORTB_RB1_MASK
+    
+    li	    t3, _PORTB_RB1_MASK
     sw	    t3, CNEN1B		    ##   (t4 = S1 bit mask; t6 = S2 bit mask)
     sw	    zero, CNEN0B	    ## Will detect falling edges on these pins
     
@@ -88,13 +87,12 @@ loop:
     .global isrvector9
     .ent isrvector9
 isrvector9:   
-    li	    t4, _PORTB_RB2_MASK	    ## t4 = 0x00000080 --> mask for S1
-    li	    t6, _PORTB_RB1_MASK    ## t6 = 0x00002000 --> mask for S2
+    li	    t4, _PORTB_RB1_MASK
     
     // Check S1
     lw	    t8, CNFB
     and	    t9, t8, t4
-    beq	    t9, zero, checkS2	    ## If bit 7 = 0, S1 wasn't pressed
+    beq	    t9, zero, intdone	    ## If bit 7 = 0, S1 wasn't pressed
     nop
     
     // S1 pressed--clear flag, then debounce and toggle if actually pressed
@@ -104,29 +102,11 @@ isrvector9:
     
     lw	    t2, PORTB		    
     and	    t2, t2, t4		    ## Is button still pressed?
-    bne	    t2, zero, checkS2	    ## If not, leave LED alone and check S2
+    bne	    t2, zero, intdone	    ## If not, leave LED alone and check S2
     nop
     li	    t0, _PORTC_RC1_MASK	    ## t0 = 0x00000001 --> control LED1
     sw	    t0, LATCINV
    
-    // Check S2
-checkS2:
-    and	    t9, t8, t6
-    beq	    t9, zero, intdone	    ## If bit 13 = 0, S2 wasn't pressed
-    nop
-    
-    // S2 pressed--clear flag, then debounce and toggle if actually pressed
-    sw	    t6, CNFBCLR		    ## Clear flag for S2
-    jal	    delay		    ## Delay to debounce
-    nop
-    lw	    t2, PORTB		    
-    and	    t2, t2, t6		    ## Is button still pressed?
-    bne	    t2, zero, intdone	    ## If not, leave LED alone and check S2
-    nop
-
-    li	    t1, _PORTC_RC2_MASK	    ## t1 = 0x00000200 --> control LED2
-    sw	    t1, LATCINV
-    
 intdone:
     li	    t3, _IFS0_CNBIF_MASK    ## Clear Port B change notification flag
     sw	    t3, IFS0CLR		    ##    in IFS0

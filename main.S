@@ -25,12 +25,12 @@ __vector_dispatch_9:
 main:
     /***** CONFIGURATION: Switches ports *****/
     add	    t0, zero, zero
-    ori	    t0, t0, _PORTB_RB8_MASK	    // R1_button
-    ori	    t0, t0, _PORTB_RB14_MASK	    // P1_button
-    ori	    t0, t0, _PORTB_RB9_MASK	    // S1_button
-    ori	    t0, t0, _PORTB_RB0_MASK	    // R2_button
+    ori	    t0, t0, _PORTB_RB9_MASK	    // R1_button
+    ori	    t0, t0, _PORTB_RB8_MASK	    // P1_button
+    ori	    t0, t0, _PORTB_RB14_MASK	    // S1_button
+    ori	    t0, t0, _PORTB_RB2_MASK	    // R2_button
     ori	    t0, t0, _PORTB_RB1_MASK	    // P2_button
-    ori	    t0, t0, _PORTB_RB2_MASK	    // S2_button
+    ori	    t0, t0, _PORTB_RB0_MASK	    // S2_button
     
     sw	    t0, TRISB		    ## TRISB --> pins are inputs
     sw	    zero, ANSELB	    ## ANSELB = 0 --> all PORTB bits digital  
@@ -56,12 +56,12 @@ main:
 
     
     add	    t0, zero, zero
-    ori	    t0, t0, _PORTB_RB8_MASK	    // R1_button
-    ori	    t0, t0, _PORTB_RB14_MASK	    // P1_button
-    ori	    t0, t0, _PORTB_RB9_MASK	    // S1_button
-    ori	    t0, t0, _PORTB_RB0_MASK	    // R2_button
+    ori	    t0, t0, _PORTB_RB9_MASK	    // R1_button
+    ori	    t0, t0, _PORTB_RB8_MASK	    // P1_button
+    ori	    t0, t0, _PORTB_RB14_MASK	    // S1_button
+    ori	    t0, t0, _PORTB_RB2_MASK	    // R2_button
     ori	    t0, t0, _PORTB_RB1_MASK	    // P2_button
-    ori	    t0, t0, _PORTB_RB2_MASK	    // S2_button
+    ori	    t0, t0, _PORTB_RB0_MASK	    // S2_button
     
     sw	    t0, CNEN1B
     sw	    zero, CNEN0B	    ## Will detect falling edges on these pins
@@ -73,6 +73,9 @@ main:
     ei				    ## Set global interrupt enable
     /***** END CONFIGURATION *****/
 
+    // button pressed flags
+    add	    s1, zero, zero	// player 1
+    add	    s2, zero, zero	// player 2
     
     // Main loop does nothing--interrupts detect button press, 
     //    handle LED toggling
@@ -104,6 +107,21 @@ debounce_loop:
 
     .end debounce_delay
     
+    
+    .global led_toggle_delay
+    .ent led_toggle_delay
+led_toggle_delay:
+	li	    t7, 4000000	    ## delay 1.5 seconds
+				    
+led_toggle_loop:
+    addi    t7, t7, -1		    ## Decrement counter
+    bne	    t7, zero, led_toggle_loop	    ##  and continue doing that until we hit 0
+    nop				    
+    jr	    ra
+    nop
+
+    .end led_toggle_delay
+    
 /********************************   END UTILS   *******************************/    
 
     
@@ -124,7 +142,7 @@ isrvector9:
     nop
     
 check_R1_button:
-    li	    t0, _PORTB_RB8_MASK
+    li	    t0, _PORTB_RB9_MASK
     
     // Check if button is pressed
     lw	    t8, CNFB
@@ -144,8 +162,7 @@ check_R1_button:
 
     /************ button pressed *************/
 
-    li	    t0, _PORTC_RC1_MASK
-    sw	    t0, LATCINV
+    li	    s1, 0b100000
     
     /********** END button pressed ***********/
     
@@ -154,7 +171,7 @@ check_R1_button:
     
     
 check_P1_button:
-    li	    t0, _PORTB_RB14_MASK
+    li	    t0, _PORTB_RB8_MASK
     
     // Check if pressed
     lw	    t8, CNFB
@@ -174,9 +191,8 @@ check_P1_button:
 
     /************ button pressed *************/
 
-    li	    t0, _PORTC_RC1_MASK
-    sw	    t0, LATCINV
-    
+    li	    s1, 0b10000
+
     /********** END button pressed ***********/
     
     j	    check_R2_button
@@ -184,7 +200,7 @@ check_P1_button:
     
     
 check_S1_button:
-    li	    t0, _PORTB_RB9_MASK
+    li	    t0, _PORTB_RB14_MASK
 
     // Check if pressed
     lw	    t8, CNFB
@@ -203,9 +219,8 @@ check_S1_button:
 
     /************ button pressed *************/
 
-    li	    t0, _PORTC_RC1_MASK
-    sw	    t0, LATCINV
-    
+    li	    s1, 0b1000
+
     /********** END button pressed ***********/
     
     j	    check_R2_button
@@ -213,7 +228,7 @@ check_S1_button:
        
  
 check_R2_button:
-    li	    t0, _PORTB_RB0_MASK
+    li	    t0, _PORTB_RB2_MASK
 
     // Check if pressed
     lw	    t8, CNFB
@@ -232,12 +247,11 @@ check_R2_button:
 
     /************ button pressed *************/
 
-    li	    t0, _PORTC_RC2_MASK
-    sw	    t0, LATCINV
+    li	    s2, 0b100
     
     /********** END button pressed ***********/  
     
-    j	    interrupt_check_done
+    j	    evaluate_result
     nop
     
     
@@ -261,22 +275,21 @@ check_P2_button:
 
     /************ button pressed *************/
 
-    li	    t0, _PORTC_RC2_MASK
-    sw	    t0, LATCINV
-    
+    li	    s2, 0b10
+
     /********** END button pressed ***********/
     
-    j	    interrupt_check_done
+    j	    evaluate_result
     nop
     
     
 check_S2_button:
-    li	    t0, _PORTB_RB2_MASK
+    li	    t0, _PORTB_RB0_MASK
     
     // Check if pressed
     lw	    t8, CNFB
     and	    t9, t8, t0
-    beq	    t9, zero, interrupt_check_done	    ## If bit 7 = 0, S1 wasn't pressed
+    beq	    t9, zero, evaluate_result	    ## If bit 7 = 0, S1 wasn't pressed
     nop
     
     // S1 pressed--clear flag, then debounce and toggle if actually pressed
@@ -285,15 +298,112 @@ check_S2_button:
     nop
     lw	    t1, PORTB		    
     and	    t1, t1, t0		    ## Is button still pressed?
-    bne	    t1, zero, interrupt_check_done	    ## If not, leave LED alone and check S2
+    bne	    t1, zero, evaluate_result	    ## If not, leave LED alone and check S2
     nop
 
     /************ button pressed *************/
 
-    li	    t0, _PORTC_RC2_MASK
-    sw	    t0, LATCINV
+    li	    s2, 0b1
     
     /********** END button pressed ***********/
+    
+    j	    evaluate_result
+    nop
+
+evaluate_result:
+    or	    t0, s1, s2
+    
+    // case RED won
+    li	    t1, 33
+    beq	    t0, t1, red_won
+    nop
+    
+    li	    t1, 20
+    beq	    t0, t1, red_won
+    nop
+    
+    li	    t1, 10
+    beq	    t0, t1, red_won
+    nop
+    
+    // case GREEN won
+    li	    t1, 34
+    beq	    t0, t1, green_won
+    nop
+    
+    li	    t1, 17
+    beq	    t0, t1, green_won
+    nop
+    
+    li	    t1, 12
+    beq	    t0, t1, green_won
+    nop    
+    
+    // case draw
+    li	    t1, 36
+    beq	    t0, t1, draw
+    nop
+    
+    li	    t1, 18
+    beq	    t0, t1, draw
+    nop
+    
+    li	    t1, 9
+    beq	    t0, t1, draw
+    nop
+    
+    // default
+    j	    interrupt_check_done
+    nop
+    
+
+red_won:
+    // toggle LED red
+    li	    t0, _PORTC_RC1_MASK
+    sw	    t0, LATCSET
+    
+    // reset button pressed flags
+    add	    s1, zero, zero
+    add	    s2, zero, zero    
+    
+    // delay
+    jal	    led_toggle_delay
+    nop
+    
+    j	    interrupt_check_done
+    nop
+
+    
+green_won:
+    // toggle LED green
+    li	    t0, _PORTC_RC2_MASK
+    sw	    t0, LATCSET
+    
+    // reset button pressed flags
+    add	    s1, zero, zero
+    add	    s2, zero, zero
+    
+    // delay
+    jal	    led_toggle_delay
+    nop
+    
+    j	    interrupt_check_done
+    nop
+    
+  
+draw:
+    // toggle red and green LEDs
+    li	    t0, _PORTC_RC2_MASK
+    ori	    t0, t0, _PORTC_RC1_MASK
+    sw	    t0, LATCSET
+    
+    // reset button pressed flags
+    add	    s1, zero, zero
+    add	    s2, zero, zero
+    
+    // delay
+    jal	    led_toggle_delay
+    nop
     
     j	    interrupt_check_done
     nop
@@ -302,6 +412,13 @@ check_S2_button:
 interrupt_check_done:
     li	    t0, _IFS0_CNBIF_MASK    ## Clear Port B change notification flag
     sw	    t0, IFS0CLR		    ##    in IFS0
+    
+    // turn LEDs off
+    li	    t0, _PORTC_RC2_MASK
+    ori	    t0, t0, _PORTC_RC1_MASK
+    sw	    t0, LATCCLR
+    
+    
     eret		    ## Return from interrupt
     
     .end isrvector9
