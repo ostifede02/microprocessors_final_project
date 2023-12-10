@@ -408,6 +408,7 @@ draw:
     j	    interrupt_check_done
     nop
     
+       
     
 interrupt_check_done:
     li	    t0, _IFS0_CNBIF_MASK    ## Clear Port B change notification flag
