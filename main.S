@@ -1,7 +1,11 @@
-## intTest2.S: in-class example to demonstrate PIC interrupt basics
-##     Basically same as portTest3.S but using change notification interrupts
-
+/*******************************************************************************
     
+    @title: Rock Paper Scissors
+    @author: Federico Osti
+    @last update: 12.11.2023
+    
+*******************************************************************************/
+     
     // Interrupt vector setup    
     .globl  __vector_dispatch_9    ## Port B change notification = vector #9
     .section .vector_9, code, keep
@@ -25,20 +29,27 @@ __vector_dispatch_9:
 main:
     /***** CONFIGURATION: Switches ports *****/
     add	    t0, zero, zero
-    ori	    t0, t0, _PORTB_RB9_MASK	    // R1_button
-    ori	    t0, t0, _PORTB_RB8_MASK	    // P1_button
-    ori	    t0, t0, _PORTB_RB14_MASK	    // S1_button
-    ori	    t0, t0, _PORTB_RB2_MASK	    // R2_button
-    ori	    t0, t0, _PORTB_RB1_MASK	    // P2_button
-    ori	    t0, t0, _PORTB_RB0_MASK	    // S2_button
+    ori	    t0, t0, _PORTB_RB9_MASK	    // R1_button    --> rock player 1
+    ori	    t0, t0, _PORTB_RB8_MASK	    // P1_button    --> paper player 1
+    ori	    t0, t0, _PORTB_RB14_MASK	    // S1_button    --> scissors player 1
+    ori	    t0, t0, _PORTB_RB2_MASK	    // R2_button    --> rock player 2
+    ori	    t0, t0, _PORTB_RB1_MASK	    // P2_button    --> paper player 2
+    ori	    t0, t0, _PORTB_RB0_MASK	    // S2_button    --> scissors player 2
     
     sw	    t0, TRISB		    ## TRISB --> pins are inputs
-    sw	    zero, ANSELB	    ## ANSELB = 0 --> all PORTB bits digital  
+    
+    not	    t0, t0
+    sw	    t0, ANSELB		    ## ANSELB = 0 --> pins are digital  
        
     
     /***** CONFIGURATION: LEDs ******/
-    sw	    zero, TRISC		    ## TRISC = 0  --> all PORTC bits = output
-    sw	    zero, ANSELC	    ## ANSELC = 0 --> all PORTC bits digital
+    add	    t0, zero, zero
+    ori	    t0, t0, _PORTC_RC1_MASK	    // LED green
+    ori	    t0, t0, _PORTC_RC2_MASK	    // LED red
+    
+    not	    t0, t0
+    sw	    t0, TRISC		    ## TRISC = 0  --> LED pins = output
+    sw	    t0, ANSELC		    ## ANSELC = 0 --> LED pins digital
 
     
     /***** CONFIGURATION: Switches interrupts *****/
@@ -64,7 +75,9 @@ main:
     ori	    t0, t0, _PORTB_RB0_MASK	    // S2_button
     
     sw	    t0, CNEN1B
-    sw	    zero, CNEN0B	    ## Will detect falling edges on these pins
+    
+    not	    t0, t0
+    sw	    t0, CNEN0B	    ## Will detect falling edges on these pins
     
     li	    t0, _CNCONB_ON_MASK		    ## Enables Port B change notification
     ori	    t0, t0, _CNCONB_CNSTYLE_MASK    ## Enables edge detection
@@ -92,7 +105,7 @@ mainloop:
     .global debounce_delay
     .ent debounce_delay
 debounce_delay:
-    li	    t7, 0x61A8		    ## Set delay counter to 0x61A8 = 25,000
+    li	    t7, 0x41A8		    ## Set delay counter to 0x61A8 = 25,000
 				    ## Since loop body has 3 instructions,
 				    ##   loop takes 25,000 * 3 = 75,000
 				    ##   cycles
@@ -111,7 +124,7 @@ debounce_loop:
     .global led_toggle_delay
     .ent led_toggle_delay
 led_toggle_delay:
-	li	    t7, 4000000	    ## delay 1.5 seconds
+	li	    t7, 3000000	    ## delay 1.25 seconds
 				    
 led_toggle_loop:
     addi    t7, t7, -1		    ## Decrement counter
@@ -134,9 +147,10 @@ led_toggle_loop:
     // Handle Port B change interrupt--check switches and toggle appropriate LEDs
     .global isrvector9
     .ent isrvector9
-isrvector9:
-    jal	    debounce_delay
-    nop
+isrvector9:    
+    // Clear Port B change notification flag
+    li	    t0, _IFS0_CNBIF_MASK
+    sw	    t0, IFS0CLR		    ##    in IFS0
     
     j	    check_R1_button
     nop
@@ -147,7 +161,7 @@ check_R1_button:
     // Check if button is pressed
     lw	    t8, CNFB
     and	    t9, t8, t0
-    beq	    t9, zero, check_P1_button	    ## If bit 7 = 0, S1 wasn't pressed
+    beq	    t9, zero, check_P1_button
     nop
     
     // S1 pressed--clear flag, then debounce and toggle if actually pressed
@@ -156,8 +170,8 @@ check_R1_button:
     nop
     
     lw	    t1, PORTB		    
-    and	    t1, t1, t0		    ## Is button still pressed?
-    bne	    t1, zero, check_P1_button	    ## If not, leave LED alone and check S2
+    and	    t1, t1, t0			## Is button still pressed?
+    bne	    t1, zero, check_P1_button	## If not, leave LED alone and check ...
     nop
 
     /************ button pressed *************/
@@ -176,17 +190,17 @@ check_P1_button:
     // Check if pressed
     lw	    t8, CNFB
     and	    t9, t8, t0
-    beq	    t9, zero, check_S1_button	    ## If bit 7 = 0, S1 wasn't pressed
+    beq	    t9, zero, check_S1_button
     nop
     
     // S1 pressed--clear flag, then debounce and toggle if actually pressed
     sw	    t0, CNFBCLR		    ## Clear flag for S1
-    jal	    debounce_delay		    ## Delay to debounce
+    jal	    debounce_delay	    ## Delay to debounce
     nop
     
     lw	    t1, PORTB		    
-    and	    t1, t1, t0		    ## Is button still pressed?
-    bne	    t1, zero, check_S1_button	    ## If not, leave LED alone and check S2
+    and	    t1, t1, t0			## Is button still pressed?
+    bne	    t1, zero, check_S1_button	## If not, leave LED alone and check ...
     nop
 
     /************ button pressed *************/
@@ -205,16 +219,16 @@ check_S1_button:
     // Check if pressed
     lw	    t8, CNFB
     and	    t9, t8, t0
-    beq	    t9, zero, check_R2_button	    ## If bit 7 = 0, S1 wasn't pressed
+    beq	    t9, zero, check_R2_button
     nop
     
     // S1 pressed--clear flag, then debounce and toggle if actually pressed
-    sw	    t0, CNFBCLR		    ## Clear flag for S1
-    jal	    debounce_delay		    ## Delay to debounce
+    sw	    t0, CNFBCLR		    ## Clear flag for switch
+    jal	    debounce_delay	    ## Delay to debounce
     nop
     lw	    t1, PORTB		    
-    and	    t1, t1, t0		    ## Is button still pressed?
-    bne	    t1, zero, check_R2_button	    ## If not, leave LED alone and check S2
+    and	    t1, t1, t0			## Is button still pressed?
+    bne	    t1, zero, check_R2_button	## If not, leave LED alone and check ...
     nop
 
     /************ button pressed *************/
@@ -233,16 +247,16 @@ check_R2_button:
     // Check if pressed
     lw	    t8, CNFB
     and	    t9, t8, t0
-    beq	    t9, zero, check_P2_button	    ## If bit 7 = 0, S1 wasn't pressed
+    beq	    t9, zero, check_P2_button
     nop
     
     // S1 pressed--clear flag, then debounce and toggle if actually pressed
-    sw	    t0, CNFBCLR		    ## Clear flag for S1
-    jal	    debounce_delay		    ## Delay to debounce
+    sw	    t0, CNFBCLR		    ## Clear flag for switch
+    jal	    debounce_delay	    ## Delay to debounce
     nop
     lw	    t1, PORTB		    
-    and	    t1, t1, t0		    ## Is button still pressed?
-    bne	    t1, zero, check_P2_button	    ## If not, leave LED alone and check S2
+    and	    t1, t1, t0			## Is button still pressed?
+    bne	    t1, zero, check_P2_button	## If not, leave LED alone and check ...
     nop
 
     /************ button pressed *************/
@@ -261,16 +275,16 @@ check_P2_button:
     // Check if pressed
     lw	    t8, CNFB
     and	    t9, t8, t0
-    beq	    t9, zero, check_S2_button	    ## If bit 7 = 0, S1 wasn't pressed
+    beq	    t9, zero, check_S2_button
     nop
     
     // S1 pressed--clear flag, then debounce and toggle if actually pressed
-    sw	    t0, CNFBCLR		    ## Clear flag for S1
-    jal	    debounce_delay		    ## Delay to debounce
+    sw	    t0, CNFBCLR			## Clear flag for S1
+    jal	    debounce_delay		## Delay to debounce
     nop
     lw	    t1, PORTB		    
-    and	    t1, t1, t0		    ## Is button still pressed?
-    bne	    t1, zero, check_S2_button	    ## If not, leave LED alone and check S2
+    and	    t1, t1, t0			## Is button still pressed?
+    bne	    t1, zero, check_S2_button	## If not, leave LED alone and check ...
     nop
 
     /************ button pressed *************/
@@ -289,16 +303,16 @@ check_S2_button:
     // Check if pressed
     lw	    t8, CNFB
     and	    t9, t8, t0
-    beq	    t9, zero, evaluate_result	    ## If bit 7 = 0, S1 wasn't pressed
+    beq	    t9, zero, evaluate_result
     nop
     
     // S1 pressed--clear flag, then debounce and toggle if actually pressed
-    sw	    t0, CNFBCLR		    ## Clear flag for S1
-    jal	    debounce_delay		    ## Delay to debounce
+    sw	    t0, CNFBCLR		    ## Clear flag for switch
+    jal	    debounce_delay	    ## Delay to debounce
     nop
     lw	    t1, PORTB		    
-    and	    t1, t1, t0		    ## Is button still pressed?
-    bne	    t1, zero, evaluate_result	    ## If not, leave LED alone and check S2
+    and	    t1, t1, t0			## Is button still pressed?
+    bne	    t1, zero, evaluate_result	## If not, leave LED alone and check ...
     nop
 
     /************ button pressed *************/
@@ -411,9 +425,7 @@ draw:
        
     
 interrupt_check_done:
-    li	    t0, _IFS0_CNBIF_MASK    ## Clear Port B change notification flag
-    sw	    t0, IFS0CLR		    ##    in IFS0
-    
+
     // turn LEDs off
     li	    t0, _PORTC_RC2_MASK
     ori	    t0, t0, _PORTC_RC1_MASK
